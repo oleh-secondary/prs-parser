@@ -19,7 +19,7 @@ const gitHubAPI = {
     }
 
     try {
-      const requestUrl = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues?state=all&per_page=2&since=${startDate}`;
+      const requestUrl = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues?state=closed&per_page=2&since=${startDate}`;
 
       // GitHub limits to 100 issues per page, so we use fetchAllPages function to get them all.
       const allIssues = await fetchAllPages(requestUrl);
