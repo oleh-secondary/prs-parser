@@ -35,6 +35,7 @@ const trelloAPI = {
       return {
         cardTitle: cardData.name,
         cardStatus: listData.name,
+        cardUrl: cardData.url.toString(),
       }
     } catch (error) {
       console.error('Error fetching Trello card details:', error.message);

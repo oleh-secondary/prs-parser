@@ -5,7 +5,15 @@ import { trelloAPI } from "./api/trelloAPI.js";
 dotenv.config();
 
 const PROJECTS = process.env.PROJECTS.split(',');
+const PROJECT_OTHER = 'OTHER';
 const TRELLO_CARD_ID_REGEX = /(?:\]\()?https:\/\/trello\.com\/c\/([^\/\)]+)(?:\)?)/;
+const CARD_STATUSES_ORDER = {
+  'Done': 0,
+  'Testing on Prod': 1,
+  'Testing on Staging': 2,
+  'Waiting for Review': 3,
+  'Doing': 4,
+};
 
 async function attachCommentsToPrs(prs) {
   const prsWithCommentsPromises = [];
@@ -71,9 +79,10 @@ async function addTrelloCardDetailsToPrs(prs) {
 
     const cardId = match[1];
     try {
-      const { cardTitle, cardStatus } = await trelloAPI.getCardDetailsById(cardId);
+      const { cardTitle, cardStatus, cardUrl } = await trelloAPI.getCardDetailsById(cardId);
       prCopy.trelloCardTitle = cardTitle;
       prCopy.trelloCardStatus = cardStatus;
+      prCopy.trelloCardUrl = cardUrl;
     } catch (error) {
       prCopy.trelloCardTitle = "Error: Unable to retrieve Trello card details";
       prCopy.trelloCardStatus = "Error: Unable to retrieve Trello card details";
@@ -86,7 +95,7 @@ async function addTrelloCardDetailsToPrs(prs) {
 }
 
 function groupPrsByProject(projects, prs) {
-  const groupedPrs = { OTHER: [] };
+  const groupedPrs = { [PROJECT_OTHER]: [] };
 
   projects.forEach(project => {
     groupedPrs[project] = [];
@@ -100,11 +109,31 @@ function groupPrsByProject(projects, prs) {
 
       return groupedPrs[projPrefix].push(pr);
     } else {
-      return groupedPrs['OTHER'].push(pr);
+      return groupedPrs[PROJECT_OTHER].push(pr);
     }
   });
 
+  for (const project in groupedPrs) {
+    groupedPrs[project].sort((a, b) => {
+      const aStatus = a.trelloCardStatus;
+      const bStatus = b.trelloCardStatus;
+
+      if (aStatus === bStatus) {
+        return a.prUpdatedAt > b.prUpdatedAt ? -1 : 1;
+      }
+
+      return CARD_STATUSES_ORDER[aStatus] > CARD_STATUSES_ORDER[bStatus] ? 1 : -1;
+    });
+
+    groupedPrs[project] = groupedPrs[project].map(pr => stringifyPr(pr, project === PROJECT_OTHER));
+  }
+
   return groupedPrs;
+}
+
+function stringifyPr(pr, dontTrimTitle=false) {
+  const title = pr.prTitle.slice(pr.prTitle.indexOf(':')+1).trim();
+  return `${dontTrimTitle ? pr.prTitle : title} ${pr.trelloCardUrl || pr.prLink || ''} ${pr.trelloCardStatus && '(' + pr.trelloCardStatus.toUpperCase() + ')' || ''}`;
 }
 
 async function fetchAndProcessPrs(startDate, endDate) {
@@ -126,8 +155,8 @@ async function fetchAndProcessPrs(startDate, endDate) {
   return prsGroupedByProject;
 }
 
-const startDate = '2023-10-12T00:00:00Z';
-const endDate = '2023-10-17T23:59:59Z';
+const startDate = '2023-11-05T00:00:00Z';
+const endDate = '2023-11-08T23:59:59Z';
 
 const processedPrs = await fetchAndProcessPrs(startDate, endDate);
 console.log('RESULT:', processedPrs);
